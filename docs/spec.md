@@ -18,7 +18,9 @@ Included:
 - bind-mounted data directory
 - basic prerequisite check script
 - deploy script
+- stop script
 - simple runtime test script
+- user systemd service
 - example environment file
 
 Not included:
@@ -41,6 +43,8 @@ This repository is a component deployment repository, not a full lab or platform
 Environment-specific orchestration, host placement, component version pinning, and actual parameters should live in an outer repository.
 
 The `.env` file is used for parameters within the standalone shape. It is not intended to select large structural variants.
+
+Reboot-time automatic startup is handled by a user systemd service. Host-level user creation, subordinate UID/GID setup, and linger enablement are outside this repository.
 
 ## Variant policy
 

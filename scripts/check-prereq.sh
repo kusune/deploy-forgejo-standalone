@@ -45,6 +45,38 @@ else
   warn "need one of: docker compose, podman-compose, podman compose"
 fi
 
+if command -v systemctl >/dev/null 2>&1; then
+  info "OK: systemctl is available"
+  if systemctl --user status >/dev/null 2>&1; then
+    info "OK: systemctl --user is usable"
+  else
+    err "systemctl --user is not usable"
+  fi
+else
+  err "systemctl is not available"
+fi
+
+if command -v loginctl >/dev/null 2>&1; then
+  info "OK: loginctl is available"
+  user_name=$(id -un)
+  if loginctl show-user "$user_name" -p Linger 2>/dev/null | grep -q '^Linger=yes$'; then
+    info "OK: linger is enabled"
+  else
+    err "linger is not enabled"
+    warn "ask the host administrator to run: sudo loginctl enable-linger $user_name"
+  fi
+else
+  err "loginctl is not available"
+fi
+
+if command -v podman >/dev/null 2>&1; then
+  if podman info 2>/dev/null | awk '/rootless:/ {print $2}' | grep -q '^true$'; then
+    info "OK: podman is running rootless"
+  else
+    err "podman rootless check failed"
+  fi
+fi
+
 if [ -f "$ENV_FILE" ]; then
   set -a
   . "$ENV_FILE"
