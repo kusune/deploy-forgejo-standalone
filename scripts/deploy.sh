@@ -23,12 +23,14 @@ esac
 
 mkdir -p "$DATA_PATH"
 
+cd "$ROOT_DIR"
+
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  docker compose --env-file "$ENV_FILE" -f "$ROOT_DIR/compose.yaml" up -d
+  docker compose -f "$ROOT_DIR/compose.yaml" up -d
 elif command -v podman-compose >/dev/null 2>&1; then
-  podman-compose --env-file "$ENV_FILE" -f "$ROOT_DIR/compose.yaml" up -d
+  podman-compose -f "$ROOT_DIR/compose.yaml" up -d
 elif command -v podman >/dev/null 2>&1 && podman compose version >/dev/null 2>&1; then
-  podman compose --env-file "$ENV_FILE" -f "$ROOT_DIR/compose.yaml" up -d
+  podman compose -f "$ROOT_DIR/compose.yaml" up -d
 else
   echo "ERROR: no supported compose command found" >&2
   echo "Need one of: docker compose, podman-compose, podman compose" >&2
