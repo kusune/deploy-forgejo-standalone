@@ -44,6 +44,8 @@ The environment file is expected to describe a standalone Forgejo deployment. It
 
 ## Data
 
-By default, Forgejo data is stored under `./data/forgejo` and is ignored by Git.
+By default, Forgejo data is stored under `${HOME}/.local/share/forgejo`.
 
-The data directory is expected to be writable by the UID/GID configured in `.env`.
+Runtime data should be kept outside the Git checkout. The data directory is expected to be writable by the UID/GID configured in `.env`.
+
+The `data/` path is still ignored by Git for temporary local testing.
