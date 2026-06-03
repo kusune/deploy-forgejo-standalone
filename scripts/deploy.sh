@@ -23,6 +23,9 @@ esac
 
 mkdir -p "$DATA_PATH"
 
+# Pass the resolved absolute data path to compose.
+export FORGEJO_DATA_DIR="$DATA_PATH"
+
 cd "$ROOT_DIR"
 
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
