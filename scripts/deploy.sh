@@ -15,7 +15,7 @@ set -a
 . "$ENV_FILE"
 set +a
 
-DATA_DIR=${FORGEJO_DATA_DIR:-./data/forgejo}
+DATA_DIR=${FORGEJO_DATA_DIR:-${HOME}/.local/share/forgejo}
 case "$DATA_DIR" in
   /*) DATA_PATH=$DATA_DIR ;;
   *) DATA_PATH=$ROOT_DIR/$DATA_DIR ;;
