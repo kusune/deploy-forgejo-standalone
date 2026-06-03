@@ -3,39 +3,84 @@
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-ENV_FILE=${ENV_FILE:-"$ROOT_DIR/.env"}
 
-if [ ! -f "$ENV_FILE" ]; then
-  echo "ERROR: environment file not found: $ENV_FILE" >&2
-  echo "Hint: cp .env.example .env" >&2
-  exit 1
-fi
+XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-"$HOME/.config"}
+XDG_DATA_HOME=${XDG_DATA_HOME:-"$HOME/.local/share"}
 
-set -a
-. "$ENV_FILE"
-set +a
+PACKAGE_NAME=${PACKAGE_NAME:-forgejo}
+DEPLOY_NAME=${DEPLOY_NAME:-deploy-${PACKAGE_NAME}-standalone}
+UNIT_NAME=${UNIT_NAME:-${PACKAGE_NAME}.service}
 
-DATA_DIR=${FORGEJO_DATA_DIR:-${HOME}/.local/share/forgejo}
-case "$DATA_DIR" in
-  /*) DATA_PATH=$DATA_DIR ;;
-  *) DATA_PATH=$ROOT_DIR/$DATA_DIR ;;
-esac
+CONFIG_DIR=${CONFIG_DIR:-"$XDG_CONFIG_HOME/$PACKAGE_NAME"}
+DEPLOY_DIR=${DEPLOY_DIR:-"$XDG_DATA_HOME/$DEPLOY_NAME"}
+SYSTEMD_USER_DIR=${SYSTEMD_USER_DIR:-"$XDG_CONFIG_HOME/systemd/user"}
 
-mkdir -p "$DATA_PATH"
+ENV_FILE=${ENV_FILE:-"$CONFIG_DIR/.env"}
+SOURCE_ENV_FILE=${SOURCE_ENV_FILE:-"$ROOT_DIR/.env"}
 
-# Pass the resolved absolute data path to compose.
-export FORGEJO_DATA_DIR="$DATA_PATH"
+mkdir -p "$CONFIG_DIR" "$DEPLOY_DIR/scripts" "$SYSTEMD_USER_DIR"
 
-cd "$ROOT_DIR"
+cp "$ROOT_DIR/compose.yaml" "$DEPLOY_DIR/compose.yaml"
+cp "$ROOT_DIR/scripts/start.sh" "$DEPLOY_DIR/scripts/start.sh"
+cp "$ROOT_DIR/scripts/stop.sh" "$DEPLOY_DIR/scripts/stop.sh"
+cp "$ROOT_DIR/scripts/check-runtime.sh" "$DEPLOY_DIR/scripts/check-runtime.sh"
+chmod 755 "$DEPLOY_DIR/scripts/start.sh" "$DEPLOY_DIR/scripts/stop.sh" "$DEPLOY_DIR/scripts/check-runtime.sh"
 
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  docker compose -f "$ROOT_DIR/compose.yaml" up -d
-elif command -v podman-compose >/dev/null 2>&1; then
-  podman-compose -f "$ROOT_DIR/compose.yaml" up -d
-elif command -v podman >/dev/null 2>&1 && podman compose version >/dev/null 2>&1; then
-  podman compose -f "$ROOT_DIR/compose.yaml" up -d
+if [ -f "$ENV_FILE" ]; then
+  echo "OK: keep existing environment file: $ENV_FILE"
 else
-  echo "ERROR: no supported compose command found" >&2
-  echo "Need one of: docker compose, podman-compose, podman compose" >&2
-  exit 1
+  if [ -f "$SOURCE_ENV_FILE" ]; then
+    cp "$SOURCE_ENV_FILE" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    echo "OK: installed environment file from $SOURCE_ENV_FILE to $ENV_FILE"
+  elif [ -f "$ROOT_DIR/.env.example" ]; then
+    cp "$ROOT_DIR/.env.example" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    echo "OK: installed environment file from .env.example to $ENV_FILE"
+    echo "WARN: review and edit $ENV_FILE before regular use" >&2
+  else
+    echo "ERROR: no source environment file found" >&2
+    exit 1
+  fi
 fi
+
+unit_file="$SYSTEMD_USER_DIR/$UNIT_NAME"
+unit_tmp="$unit_file.tmp.$$"
+
+cat > "$unit_tmp" <<EOF_UNIT
+[Unit]
+Description=Forgejo standalone rootless Podman compose stack
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PACKAGE_NAME=$PACKAGE_NAME
+Environment=DEPLOY_NAME=$DEPLOY_NAME
+Environment=CONFIG_DIR=$CONFIG_DIR
+Environment=DEPLOY_DIR=$DEPLOY_DIR
+Environment=ENV_FILE=$ENV_FILE
+Environment=UNIT_NAME=$UNIT_NAME
+WorkingDirectory=$DEPLOY_DIR
+ExecStart=$DEPLOY_DIR/scripts/start.sh
+ExecStop=$DEPLOY_DIR/scripts/stop.sh
+RemainAfterExit=yes
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+[Install]
+WantedBy=default.target
+EOF_UNIT
+
+rm -f "$unit_file"
+mv "$unit_tmp" "$unit_file"
+
+systemctl --user daemon-reload
+systemctl --user enable "$UNIT_NAME"
+
+echo "OK: installed deploy assets to $DEPLOY_DIR"
+echo "OK: installed systemd user unit: $unit_file"
+echo
+echo "Next:"
+echo "  systemctl --user restart $UNIT_NAME"
+echo "  $DEPLOY_DIR/scripts/check-runtime.sh"

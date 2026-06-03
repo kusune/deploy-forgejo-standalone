@@ -16,11 +16,12 @@ Included:
 - SQLite3 database used by Forgejo
 - local Forgejo user authentication
 - bind-mounted data directory
-- basic prerequisite check script
-- deploy script
-- stop script
-- simple runtime test script
-- user systemd service
+- prerequisite check script
+- install/update script
+- runtime start script
+- runtime stop script
+- runtime check script
+- generated user systemd service
 - example environment file
 
 Not included:
@@ -40,7 +41,26 @@ Not included:
 
 This repository is a component deployment repository, not a full lab or platform orchestration repository.
 
-Environment-specific orchestration, host placement, component version pinning, and actual parameters should live in an outer repository.
+The Git checkout is an install/update source. It is not the long-lived runtime directory.
+
+Persistent runtime configuration is placed under the XDG config directory. Persistent deployment assets and Forgejo data are placed under the XDG data directory.
+
+Default logical names:
+
+```text
+PACKAGE_NAME=forgejo
+DEPLOY_NAME=deploy-forgejo-standalone
+UNIT_NAME=forgejo.service
+```
+
+Default runtime paths:
+
+```text
+CONFIG_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/forgejo
+ENV_FILE=$CONFIG_DIR/.env
+DEPLOY_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/deploy-forgejo-standalone
+FORGEJO_DATA_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/forgejo
+```
 
 The `.env` file is used for parameters within the standalone shape. It is not intended to select large structural variants.
 

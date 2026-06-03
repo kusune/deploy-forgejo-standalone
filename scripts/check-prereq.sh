@@ -3,12 +3,20 @@
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-ENV_FILE=${ENV_FILE:-"$ROOT_DIR/.env"}
+XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-"$HOME/.config"}
+XDG_DATA_HOME=${XDG_DATA_HOME:-"$HOME/.local/share"}
+
+PACKAGE_NAME=${PACKAGE_NAME:-forgejo}
+DEPLOY_NAME=${DEPLOY_NAME:-deploy-${PACKAGE_NAME}-standalone}
+
+CONFIG_DIR=${CONFIG_DIR:-"$XDG_CONFIG_HOME/$PACKAGE_NAME"}
+DEPLOY_DIR=${DEPLOY_DIR:-"$XDG_DATA_HOME/$DEPLOY_NAME"}
+ENV_FILE=${ENV_FILE:-"$CONFIG_DIR/.env"}
 
 fail=0
 
 info() {
-  printf '%s\n' "$*"
+  printf 'OK: %s\n' "$*"
 }
 
 warn() {
@@ -20,81 +28,67 @@ err() {
   fail=1
 }
 
-resolve_path() {
-  case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *) printf '%s\n' "$ROOT_DIR/$1" ;;
-  esac
+need_cmd() {
+  if command -v "$1" >/dev/null 2>&1; then
+    info "$1 found: $(command -v "$1")"
+  else
+    err "$1 not found"
+  fi
 }
 
-if [ ! -f "$ENV_FILE" ]; then
-  err "environment file not found: $ENV_FILE"
-  warn "copy .env.example to .env and edit it"
+need_cmd podman
+need_cmd podman-compose
+need_cmd systemctl
+need_cmd loginctl
+need_cmd curl
+
+if podman info 2>/dev/null | awk '/rootless:/ {print $2}' | grep -q '^true$'; then
+  info "podman is running rootless"
 else
-  info "OK: environment file exists: $ENV_FILE"
+  err "podman rootless check failed"
 fi
 
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  info "OK: docker compose is available"
-elif command -v podman-compose >/dev/null 2>&1; then
-  info "OK: podman-compose is available"
-elif command -v podman >/dev/null 2>&1 && podman compose version >/dev/null 2>&1; then
-  info "OK: podman compose is available"
+if systemctl --user status >/dev/null 2>&1; then
+  info "systemctl --user is usable"
 else
-  err "no supported compose command found"
-  warn "need one of: docker compose, podman-compose, podman compose"
+  err "systemctl --user is not usable"
 fi
 
-if command -v systemctl >/dev/null 2>&1; then
-  info "OK: systemctl is available"
-  if systemctl --user status >/dev/null 2>&1; then
-    info "OK: systemctl --user is usable"
-  else
-    err "systemctl --user is not usable"
-  fi
+user_name=$(id -un)
+if loginctl show-user "$user_name" -p Linger 2>/dev/null | grep -q '^Linger=yes$'; then
+  info "linger is enabled"
 else
-  err "systemctl is not available"
+  err "linger is not enabled"
+  warn "ask the host administrator to run: sudo loginctl enable-linger $user_name"
 fi
 
-if command -v loginctl >/dev/null 2>&1; then
-  info "OK: loginctl is available"
-  user_name=$(id -un)
-  if loginctl show-user "$user_name" -p Linger 2>/dev/null | grep -q '^Linger=yes$'; then
-    info "OK: linger is enabled"
-  else
-    err "linger is not enabled"
-    warn "ask the host administrator to run: sudo loginctl enable-linger $user_name"
-  fi
+if grep -q "^$user_name:" /etc/subuid 2>/dev/null; then
+  info "/etc/subuid has $user_name entry"
 else
-  err "loginctl is not available"
+  err "/etc/subuid has no $user_name entry"
 fi
 
-if command -v podman >/dev/null 2>&1; then
-  if podman info 2>/dev/null | awk '/rootless:/ {print $2}' | grep -q '^true$'; then
-    info "OK: podman is running rootless"
-  else
-    err "podman rootless check failed"
-  fi
+if grep -q "^$user_name:" /etc/subgid 2>/dev/null; then
+  info "/etc/subgid has $user_name entry"
+else
+  err "/etc/subgid has no $user_name entry"
+fi
+
+if [ -f "$ROOT_DIR/.env" ]; then
+  info "source environment file exists: $ROOT_DIR/.env"
+else
+  warn "source environment file does not exist: $ROOT_DIR/.env"
+  warn "deploy will use .env.example only if target environment file does not already exist"
 fi
 
 if [ -f "$ENV_FILE" ]; then
-  set -a
-  . "$ENV_FILE"
-  set +a
-
-  DATA_DIR=${FORGEJO_DATA_DIR:-${HOME}/.local/share/forgejo}
-  DATA_PATH=$(resolve_path "$DATA_DIR")
-
-  if [ -e "$DATA_PATH" ]; then
-    if [ -d "$DATA_PATH" ]; then
-      info "OK: data directory exists: $DATA_PATH"
-    else
-      err "data path exists but is not a directory: $DATA_PATH"
-    fi
-  else
-    info "OK: data directory does not exist yet: $DATA_PATH"
-  fi
+  info "target environment file exists: $ENV_FILE"
+else
+  warn "target environment file does not exist yet: $ENV_FILE"
 fi
+
+info "default config directory: $CONFIG_DIR"
+info "default deploy directory: $DEPLOY_DIR"
 
 if [ "$fail" -ne 0 ]; then
   exit 1

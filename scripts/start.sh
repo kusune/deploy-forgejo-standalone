@@ -30,8 +30,9 @@ case "$DATA_DIR" in
   *) DATA_PATH=$DEPLOY_DIR/$DATA_DIR ;;
 esac
 
+mkdir -p "$DATA_PATH"
 export FORGEJO_DATA_DIR="$DATA_PATH"
 
 cd "$DEPLOY_DIR"
 
-podman-compose -f "$DEPLOY_DIR/compose.yaml" -p "$COMPOSE_PROJECT_NAME" down
+podman-compose -f "$DEPLOY_DIR/compose.yaml" -p "$COMPOSE_PROJECT_NAME" up -d
