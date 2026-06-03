@@ -21,6 +21,30 @@ set -a
 . "$ENV_FILE"
 set +a
 
+validate_bind_ip_literal() {
+  name=$1
+  value=$2
+
+  if [ -z "$value" ]; then
+    echo "ERROR: $name is empty" >&2
+    exit 1
+  fi
+
+  case "$value" in
+    *[!0123456789abcdefABCDEF:.%]*)
+      echo "ERROR: $name must be an IP address for Podman port binding, not a hostname: $value" >&2
+      exit 1
+      ;;
+    *[g-zG-Z]*)
+      echo "ERROR: $name looks like a hostname, but Podman port binding requires an IP address: $value" >&2
+      exit 1
+      ;;
+  esac
+}
+
+validate_bind_ip_literal FORGEJO_HTTP_HOST "${FORGEJO_HTTP_HOST:-}"
+validate_bind_ip_literal FORGEJO_SSH_HOST "${FORGEJO_SSH_HOST:-}"
+
 COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-$PACKAGE_NAME}
 export COMPOSE_PROJECT_NAME
 

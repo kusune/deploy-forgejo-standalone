@@ -36,6 +36,47 @@ need_cmd() {
   fi
 }
 
+validate_bind_ip_literal() {
+  name=$1
+  value=$2
+  label=$3
+
+  if [ -z "$value" ]; then
+    err "$label: $name is empty"
+    return
+  fi
+
+  case "$value" in
+    *[!0123456789abcdefABCDEF:.%]*)
+      err "$label: $name must be an IP address for Podman port binding, not a hostname: $value"
+      return
+      ;;
+    *[g-zG-Z]*)
+      err "$label: $name looks like a hostname, but Podman port binding requires an IP address: $value"
+      return
+      ;;
+  esac
+}
+
+validate_env_file() {
+  file=$1
+  label=$2
+
+  if [ ! -f "$file" ]; then
+    return
+  fi
+
+  # shellcheck disable=SC1090
+  . "$file"
+
+  validate_bind_ip_literal FORGEJO_HTTP_HOST "${FORGEJO_HTTP_HOST:-}" "$label"
+  validate_bind_ip_literal FORGEJO_SSH_HOST "${FORGEJO_SSH_HOST:-}" "$label"
+
+  if [ -n "${FORGEJO_ROOT_URL:-}" ]; then
+    info "$label ROOT_URL: $FORGEJO_ROOT_URL"
+  fi
+}
+
 need_cmd podman
 need_cmd podman-compose
 need_cmd systemctl
@@ -76,6 +117,7 @@ fi
 
 if [ -f "$ROOT_DIR/.env" ]; then
   info "source environment file exists: $ROOT_DIR/.env"
+  validate_env_file "$ROOT_DIR/.env" "source environment file"
 else
   warn "source environment file does not exist: $ROOT_DIR/.env"
   warn "deploy will use .env.example only if target environment file does not already exist"
@@ -83,6 +125,7 @@ fi
 
 if [ -f "$ENV_FILE" ]; then
   info "target environment file exists: $ENV_FILE"
+  validate_env_file "$ENV_FILE" "target environment file"
 else
   warn "target environment file does not exist yet: $ENV_FILE"
 fi
