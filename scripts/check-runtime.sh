@@ -31,15 +31,26 @@ resolve_path() {
   esac
 }
 
-check_container() {
-  name="$1"
+find_container() {
+  project_name=$(basename "$ROOT_DIR")
 
-  if ! podman container exists "$name"; then
-    ng "$name container does not exist"
+  podman ps -a \
+    --filter "label=com.docker.compose.project=$project_name" \
+    --filter "label=com.docker.compose.service=forgejo" \
+    --format '{{.ID}}' \
+    | head -n 1
+}
+
+check_container() {
+  container_id="$1"
+
+  if [ -z "$container_id" ]; then
+    ng "forgejo container does not exist"
     return
   fi
 
-  state=$(podman inspect "$name" --format "{{.State.Status}}" 2>/dev/null || true)
+  name=$(podman inspect "$container_id" --format "{{.Name}}" 2>/dev/null | sed 's#^/##' || true)
+  state=$(podman inspect "$container_id" --format "{{.State.Status}}" 2>/dev/null || true)
 
   if [ "$state" = "running" ]; then
     ok "$name is running"
@@ -65,15 +76,14 @@ DATA_DIR=${FORGEJO_DATA_DIR:-${HOME}/.local/share/forgejo}
 DATA_PATH=$(resolve_path "$DATA_DIR")
 export FORGEJO_DATA_DIR="$DATA_PATH"
 
-CONTAINER_NAME=${COMPOSE_PROJECT_NAME:-forgejo}
 URL=${FORGEJO_ROOT_URL:-http://localhost:3000/}
 
 cd "$ROOT_DIR"
 
-if podman-compose -f "$ROOT_DIR/compose.yaml" config >/dev/null 2>&1; then
-  ok "podman-compose config is valid"
+if podman-compose -f "$ROOT_DIR/compose.yaml" ps >/dev/null 2>&1; then
+  ok "podman-compose ps succeeded"
 else
-  ng "podman-compose config failed"
+  ng "podman-compose ps failed"
 fi
 
 if systemctl --user is-enabled --quiet forgejo.service; then
@@ -88,7 +98,7 @@ else
   ng "forgejo.service is not active"
 fi
 
-check_container "$CONTAINER_NAME"
+check_container "$(find_container)"
 
 if curl -fsS -L --max-time 10 "$URL" >/dev/null; then
   ok "Forgejo HTTP endpoint responded: $URL"
