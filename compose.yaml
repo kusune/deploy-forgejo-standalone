@@ -1,0 +1,22 @@
+services:
+  forgejo:
+    image: ${FORGEJO_IMAGE:-codeberg.org/forgejo/forgejo:12}
+    container_name: ${COMPOSE_PROJECT_NAME:-forgejo}
+    restart: unless-stopped
+    environment:
+      USER_UID: ${FORGEJO_UID:-1000}
+      USER_GID: ${FORGEJO_GID:-1000}
+      FORGEJO__DEFAULT__APP_NAME: ${FORGEJO_APP_NAME:-Forgejo}
+      FORGEJO__server__DOMAIN: ${FORGEJO_DOMAIN:-localhost}
+      FORGEJO__server__ROOT_URL: ${FORGEJO_ROOT_URL:-http://localhost:3000/}
+      FORGEJO__server__HTTP_PORT: 3000
+      FORGEJO__server__SSH_DOMAIN: ${FORGEJO_DOMAIN:-localhost}
+      FORGEJO__server__SSH_PORT: ${FORGEJO_SSH_PORT:-2222}
+      FORGEJO__server__START_SSH_SERVER: "true"
+      FORGEJO__database__DB_TYPE: sqlite3
+      FORGEJO__database__PATH: /data/forgejo.db
+    ports:
+      - "${FORGEJO_HTTP_HOST:-127.0.0.1}:${FORGEJO_HTTP_PORT:-3000}:3000"
+      - "${FORGEJO_SSH_HOST:-127.0.0.1}:${FORGEJO_SSH_PORT:-2222}:22"
+    volumes:
+      - "${FORGEJO_DATA_DIR:-./data/forgejo}:/data"
