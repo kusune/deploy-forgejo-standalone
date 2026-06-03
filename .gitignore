@@ -1,0 +1,14 @@
+# Local environment
+.env
+*.local
+
+# Runtime data
+data/
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Logs
+*.log
