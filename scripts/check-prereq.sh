@@ -20,6 +20,13 @@ err() {
   fail=1
 }
 
+resolve_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s\n' "$ROOT_DIR/$1" ;;
+  esac
+}
+
 if [ ! -f "$ENV_FILE" ]; then
   err "environment file not found: $ENV_FILE"
   warn "copy .env.example to .env and edit it"
@@ -43,11 +50,8 @@ if [ -f "$ENV_FILE" ]; then
   . "$ENV_FILE"
   set +a
 
-  DATA_DIR=${FORGEJO_DATA_DIR:-./data/forgejo}
-  case "$DATA_DIR" in
-    /*) DATA_PATH=$DATA_DIR ;;
-    *) DATA_PATH=$ROOT_DIR/$DATA_DIR ;;
-  esac
+  DATA_DIR=${FORGEJO_DATA_DIR:-${HOME}/.local/share/forgejo}
+  DATA_PATH=$(resolve_path "$DATA_DIR")
 
   if [ -e "$DATA_PATH" ]; then
     if [ -d "$DATA_PATH" ]; then
