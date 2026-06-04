@@ -1,42 +1,90 @@
 # deploy-forgejo-standalone
 
-Standalone Forgejo deployment assets for small self-hosted environments.
+rootless Podman、podman-compose、user systemd service を使って、
+standalone な Forgejo instance を動かすための小さな deploy package である。
 
-This repository provides a minimal all-in-one Forgejo deployment set. It is intended to be reusable as a component repository from an outer environment repository, such as a lab orchestration repository.
+## これでできること
 
-## Current status
+この repository は、最小構成の Forgejo deployment を再現しやすくするためのものである。
 
-The current tested baseline is:
+`.env` を用意し、prerequisite check がすべて OK になるように設定できていれば、
+基本的には次の流れで Forgejo を deploy できる。
 
+```sh
+bash scripts/check-prereq.sh
+bash scripts/deploy.sh
+systemctl --user restart forgejo.service
+~/.local/share/deploy-forgejo-standalone/scripts/check-runtime.sh
+```
+
+`deploy.sh` は runtime 用の資材を XDG 風の永続配置先へ install し、
+user systemd service を生成する。
+
+runtime config は Git checkout の外に置かれる。
+
+default の構成では、以下が得られる。
+
+- standalone な Forgejo container
+- SQLite3 database
+- Forgejo local user authentication
+- container 内 sshd による Git over SSH
+- rootless Podman 実行
+- podman-compose による lifecycle 管理
+- user systemd service による service 管理
+- linger 有効時の reboot-time startup
+- prerequisite check script
+- runtime check script
+- Git checkout 外の runtime data 配置
+
+clone して、`.env` を書いて、check して、deploy し、
+その後は systemd で運用する、という単純な流れを目指している。
+
+## 現在確認済みの baseline
+
+現在の確認済み baseline は以下である。
+
+- Debian 系 host
 - rootless Podman
 - podman-compose
 - user systemd service
-- Forgejo reachable on `127.0.0.1:3000` by default
+- Forgejo container image `codeberg.org/forgejo/forgejo:12`
 - SQLite3 database
-- Git over SSH via the container's sshd
+- default では `127.0.0.1:3000` で Forgejo に到達
 
 ## Scope
 
-This repository manages a standalone Forgejo instance with:
+この repository が扱う standalone Forgejo instance には、以下を含む。
 
 - Forgejo container image
-- SQLite3 database used by Forgejo
-- local Forgejo users
+- Forgejo が使う SQLite3 database
+- Forgejo local user
 - bind-mounted Forgejo data directory
+- prerequisite check script
 - install/update script
 - runtime start/stop scripts
 - runtime check script
 - user systemd service generation
 
-The initial scope intentionally does not include external PostgreSQL, OIDC/SSO, reverse proxy, TLS termination, mail delivery, Forgejo Actions runners, monitoring, or backup orchestration.
+初期 scope には、以下を含めない。
 
-Those features should be handled later as explicit extensions, external components, or higher-level orchestration.
+- external PostgreSQL
+- OIDC / SSO
+- reverse proxy
+- TLS termination
+- mail delivery
+- Forgejo Actions runner
+- monitoring
+- backup orchestration
+
+これらが必要になった場合は、明示的な拡張、別 component、
+または上位の orchestration 側で扱う。
 
 ## Installed layout
 
-The Git checkout is treated as an install/update source, not as the long-lived runtime directory.
+Git checkout は install/update source として扱う。
+長期的な runtime directory ではない。
 
-Default installed paths are:
+default の install 先は以下である。
 
 ```text
 ~/.config/forgejo/.env
@@ -45,7 +93,7 @@ Default installed paths are:
 ~/.config/systemd/user/forgejo.service
 ```
 
-The defaults are derived from:
+default は以下の logical name から導出される。
 
 ```text
 PACKAGE_NAME=forgejo
@@ -53,44 +101,51 @@ DEPLOY_NAME=deploy-forgejo-standalone
 UNIT_NAME=forgejo.service
 ```
 
-The main derived paths can be overridden with environment variables such as `CONFIG_DIR`, `DEPLOY_DIR`, `ENV_FILE`, and `UNIT_NAME`.
+主な path は、`CONFIG_DIR`、`DEPLOY_DIR`、`ENV_FILE`、`UNIT_NAME` などの
+環境変数で override できる。
 
 ## Quick start
 
-Prepare an environment file in the checkout:
+checkout 内で environment file を用意する。
 
 ```sh
 cp .env.example .env
 vi .env
 ```
 
-Check prerequisites:
+prerequisite check を実行する。
 
 ```sh
 bash scripts/check-prereq.sh
 ```
 
-Install or update the persistent deployment:
+`[NG]` や `ERROR` が出た場合は、そのまま deploy に進まない。
+表示された問題を解消し、`check-prereq.sh` を再実行する。
+
+すべての必須項目が OK になった状態で deploy する想定である。
+
+永続配置先へ install/update する。
 
 ```sh
 bash scripts/deploy.sh
 ```
 
-Start or restart the service:
+service を start/restart する。
 
 ```sh
 systemctl --user restart forgejo.service
 ```
 
-Check runtime state:
+runtime state を確認する。
 
 ```sh
 ~/.local/share/deploy-forgejo-standalone/scripts/check-runtime.sh
 ```
 
-Then open the configured Forgejo URL and complete the initial setup if required.
+その後、設定した Forgejo URL を開き、必要に応じて初期設定を完了する。
 
-For reboot-time automatic startup, the service user must have linger enabled by the host administrator:
+reboot 後にも user service を自動起動させるには、
+host administrator によって service user の linger が有効化されている必要がある。
 
 ```sh
 sudo loginctl enable-linger <service-user>
@@ -98,73 +153,122 @@ sudo loginctl enable-linger <service-user>
 
 ## Configuration
 
-The runtime `.env` file is installed to:
+runtime 用の `.env` は以下に install される。
 
 ```text
 ~/.config/forgejo/.env
 ```
 
-After the initial install, edit this persistent `.env` file for runtime configuration changes.
+初回 install 後に runtime config を変更する場合は、この persistent `.env` を編集する。
 
-Then restart the service:
+編集後は service を restart する。
 
 ```sh
 systemctl --user restart forgejo.service
 ```
 
-The checkout-local `.env` is an install/update input. It is not the file read by systemd after deployment.
+checkout-local の `.env` は install/update 用の input である。
+deploy 後に systemd から読まれる file ではない。
 
-If the persistent `.env` already exists, `scripts/deploy.sh` keeps it and does not overwrite it.
+persistent `.env` がすでに存在する場合、`scripts/deploy.sh` はそれを保持し、
+上書きしない。
+
+### Public URL と bind address
+
+`FORGEJO_DOMAIN` と `FORGEJO_ROOT_URL` は、Forgejo が利用者に見せる
+URL/name、または Forgejo が生成する URL に関係する。
+
+`FORGEJO_HTTP_HOST` と `FORGEJO_SSH_HOST` は、
+Podman port publishing に渡される host-side bind address である。
+
+hostname や FQDN ではなく、IP address を指定する。
+
+host-local access の例である。
+
+```env
+FORGEJO_DOMAIN=localhost
+FORGEJO_ROOT_URL=http://localhost:3000/
+FORGEJO_HTTP_HOST=127.0.0.1
+FORGEJO_HTTP_PORT=3000
+FORGEJO_SSH_HOST=127.0.0.1
+FORGEJO_SSH_PORT=2222
+```
+
+特定の host address に bind する例である。
+
+```env
+FORGEJO_DOMAIN=forgejo.example.internal
+FORGEJO_ROOT_URL=http://forgejo.example.internal:3000/
+FORGEJO_HTTP_HOST=10.x.y.z
+FORGEJO_HTTP_PORT=3000
+FORGEJO_SSH_HOST=10.x.y.z
+FORGEJO_SSH_PORT=2222
+```
+
+`0.0.0.0` は wildcard exposure を意図している場合だけ使う。
 
 ## Basic operation
 
-Start service:
+service を start する。
 
 ```sh
 systemctl --user start forgejo.service
 ```
 
-Stop service:
+service を stop する。
 
 ```sh
 systemctl --user stop forgejo.service
 ```
 
-Restart service after changing persistent config:
+persistent config 変更後などに service を restart する。
 
 ```sh
 systemctl --user restart forgejo.service
 ```
 
-Check service status:
+service status を確認する。
 
 ```sh
 systemctl --user status --no-pager forgejo.service
 ```
 
-Check runtime state:
+runtime state を確認する。
 
 ```sh
 ~/.local/share/deploy-forgejo-standalone/scripts/check-runtime.sh
 ```
 
+より詳しい運用手順は以下を参照する。
+
+```text
+docs/operations.ja.md
+```
+
+設計方針は以下を参照する。
+
+```text
+docs/spec.ja.md
+```
+
 ## Data
 
-By default, Forgejo data is stored under:
+default では、Forgejo data は以下に保存される。
 
 ```text
 ~/.local/share/forgejo/
 ```
 
-Runtime data should be kept outside the Git checkout.
+runtime data は Git checkout の外に置く。
 
-To reset local runtime data for a fresh initial setup:
+初期設定からやり直すために runtime data を削除する場合は、以下を実行する。
 
 ```sh
 systemctl --user stop forgejo.service
 podman unshare rm -rf "$HOME/.local/share/forgejo"
 ```
 
-Use `podman unshare` for runtime data cleanup because rootless Podman maps container UIDs/GIDs to host-side subordinate IDs.
+rootless Podman では container UID/GID が host 側の subordinate UID/GID に
+map されるため、runtime data cleanup には `podman unshare` を使う。
 
-The `data/` path is still ignored by Git for temporary local testing.
+temporary local testing 用に、`data/` path は Git ignore されている。
