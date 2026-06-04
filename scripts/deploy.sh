@@ -3,6 +3,15 @@
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+LIB_FILE="$ROOT_DIR/scripts/lib.sh"
+
+if [ ! -r "$LIB_FILE" ]; then
+  echo "ERROR: cannot continue: required helper script is missing: $LIB_FILE" >&2
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+. "$LIB_FILE"
 
 XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-"$HOME/.config"}
 XDG_DATA_HOME=${XDG_DATA_HOME:-"$HOME/.local/share"}
@@ -21,26 +30,27 @@ SOURCE_ENV_FILE=${SOURCE_ENV_FILE:-"$ROOT_DIR/.env"}
 mkdir -p "$CONFIG_DIR" "$DEPLOY_DIR/scripts" "$SYSTEMD_USER_DIR"
 
 cp "$ROOT_DIR/compose.yaml" "$DEPLOY_DIR/compose.yaml"
+cp "$ROOT_DIR/scripts/lib.sh" "$DEPLOY_DIR/scripts/lib.sh"
 cp "$ROOT_DIR/scripts/start.sh" "$DEPLOY_DIR/scripts/start.sh"
 cp "$ROOT_DIR/scripts/stop.sh" "$DEPLOY_DIR/scripts/stop.sh"
 cp "$ROOT_DIR/scripts/check-runtime.sh" "$DEPLOY_DIR/scripts/check-runtime.sh"
+chmod 644 "$DEPLOY_DIR/scripts/lib.sh"
 chmod 755 "$DEPLOY_DIR/scripts/start.sh" "$DEPLOY_DIR/scripts/stop.sh" "$DEPLOY_DIR/scripts/check-runtime.sh"
 
 if [ -f "$ENV_FILE" ]; then
-  echo "OK: keep existing environment file: $ENV_FILE"
+  check_ok "keep existing environment file: $ENV_FILE"
 else
   if [ -f "$SOURCE_ENV_FILE" ]; then
     cp "$SOURCE_ENV_FILE" "$ENV_FILE"
     chmod 600 "$ENV_FILE"
-    echo "OK: installed environment file from $SOURCE_ENV_FILE to $ENV_FILE"
+    check_ok "installed environment file from $SOURCE_ENV_FILE to $ENV_FILE"
   elif [ -f "$ROOT_DIR/.env.example" ]; then
     cp "$ROOT_DIR/.env.example" "$ENV_FILE"
     chmod 600 "$ENV_FILE"
-    echo "OK: installed environment file from .env.example to $ENV_FILE"
-    echo "WARN: review and edit $ENV_FILE before regular use" >&2
+    check_ok "installed environment file from .env.example to $ENV_FILE"
+    check_warn "review and edit $ENV_FILE before regular use"
   else
-    echo "ERROR: no source environment file found" >&2
-    exit 1
+    fatal_error "no source environment file found"
   fi
 fi
 
@@ -78,8 +88,8 @@ mv "$unit_tmp" "$unit_file"
 systemctl --user daemon-reload
 systemctl --user enable "$UNIT_NAME"
 
-echo "OK: installed deploy assets to $DEPLOY_DIR"
-echo "OK: installed systemd user unit: $unit_file"
+check_ok "installed deploy assets to $DEPLOY_DIR"
+check_ok "installed systemd user unit: $unit_file"
 echo
 echo "Next:"
 echo "  systemctl --user restart $UNIT_NAME"

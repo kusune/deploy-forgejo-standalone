@@ -40,12 +40,18 @@ bash scripts/check-prereq.sh
 `FORGEJO_HTTP_HOST` と `FORGEJO_SSH_HOST` は IP address である必要がある。
 hostname や FQDN は指定できない。
 
-`[NG]` や `ERROR` が出た場合は、そのまま deploy/update に進まない。
+`[NG]` が出た場合は、通常の prerequisite が満たされていない。
+そのまま deploy/update に進まない。
 表示された問題を解消し、`check-prereq.sh` を再実行してから
 `scripts/deploy.sh` に進む。
 
-`WARN` は必ずしも即時停止条件ではない。
+`[WARN]` は必ずしも即時停止条件ではない。
 ただし、内容を確認し、その環境で意図した状態かどうかを判断する。
+
+`ERROR:` は通常の prerequisite check の NG ではなく、
+script の実行前提が壊れていて check を継続できない状態を表す。
+repository や install 済み資材の欠損、script の不具合、
+想定外状態などが該当する。
 
 ## Install or update persistent deployment
 
@@ -61,6 +67,7 @@ bash scripts/deploy.sh
 ~/.local/share/deploy-forgejo-standalone/compose.yaml
 ~/.local/share/deploy-forgejo-standalone/scripts/start.sh
 ~/.local/share/deploy-forgejo-standalone/scripts/stop.sh
+~/.local/share/deploy-forgejo-standalone/scripts/lib.sh
 ~/.local/share/deploy-forgejo-standalone/scripts/check-runtime.sh
 ~/.config/systemd/user/forgejo.service
 ```
@@ -162,6 +169,12 @@ install 済みの runtime check script を使う。
 - systemd service active state
 - container running state
 - Forgejo HTTP endpoint response
+
+`[NG]` が出た場合は、runtime state が期待する状態ではない。
+表示された問題を確認し、必要な修正を行ってから再実行する。
+
+`ERROR:` が出た場合は、通常の runtime check の NG ではなく、
+script の実行前提が壊れていて check を継続できない状態である。
 
 ## Change configuration
 

@@ -119,10 +119,14 @@ prerequisite check を実行する。
 bash scripts/check-prereq.sh
 ```
 
-`[NG]` や `ERROR` が出た場合は、そのまま deploy に進まない。
+`[NG]` が出た場合は、通常の prerequisite が満たされていない。
 表示された問題を解消し、`check-prereq.sh` を再実行する。
 
-すべての必須項目が OK になった状態で deploy する想定である。
+`ERROR:` が出た場合は、repository や script の実行前提が壊れており、
+通常の check として継続できない状態である。
+repository の取得状態や install 済み資材の欠損を確認する。
+
+すべての必須項目が `[OK]` になった状態で deploy する想定である。
 
 永続配置先へ install/update する。
 
@@ -242,13 +246,13 @@ runtime state を確認する。
 より詳しい運用手順は以下を参照する。
 
 ```text
-docs/operations.ja.md
+docs/operations.md
 ```
 
 設計方針は以下を参照する。
 
 ```text
-docs/spec.ja.md
+docs/spec.md
 ```
 
 ## Data
