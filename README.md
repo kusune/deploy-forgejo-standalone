@@ -245,15 +245,11 @@ runtime state を確認する。
 
 より詳しい運用手順は以下を参照する。
 
-```text
-docs/operations.md
-```
+[docs/operations.md](docs/operations.md)
 
 設計方針は以下を参照する。
 
-```text
-docs/spec.md
-```
+[docs/spec.md](docs/spec.md)
 
 ## Data
 
